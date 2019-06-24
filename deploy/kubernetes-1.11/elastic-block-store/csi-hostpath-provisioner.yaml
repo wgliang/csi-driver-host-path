@@ -1,0 +1,55 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: csi-elastic-block-store-provisioner 
+  labels:
+    app: csi-elastic-block-store-provisioner 
+spec:
+  selector:
+    app: csi-elastic-block-store-provisioner 
+  ports:
+    - name: dummy
+      port: 12345
+
+---
+kind: StatefulSet
+apiVersion: apps/v1
+metadata:
+  name: csi-elastic-block-store-provisioner
+spec:
+  serviceName: "csi-elastic-block-store-provisioner"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: csi-elastic-block-store-provisioner
+  template:
+    metadata:
+      labels:
+        app: csi-elastic-block-store-provisioner
+    spec:
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - csi-elastic-block-storeplugin
+            topologyKey: kubernetes.io/hostname
+      serviceAccountName: csi-provisioner
+      containers:
+        - name: csi-provisioner
+          image: quay.io/k8scsi/csi-provisioner:v0.4.2
+          args:
+            - -v=5
+            - --csi-address=/csi/csi.sock
+            - --connection-timeout=15s
+          volumeMounts:
+            - mountPath: /csi
+              name: socket-dir
+      volumes:
+        - hostPath:
+            path: /var/lib/kubelet/plugins/csi-elastic-block-store
+            type: DirectoryOrCreate
+          name: socket-dir
